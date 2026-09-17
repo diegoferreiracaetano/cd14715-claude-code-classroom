@@ -7,6 +7,20 @@ import {
 } from './analysis-results';
 
 /**
+ * Combined analysis result for a single file, produced by delegating
+ * to the three subagents (code quality, test coverage, refactoring)
+ * in parallel via the Task tool.
+ */
+export const FileReviewSchema = z.object({
+  file: z.string(),
+  codeQuality: CodeQualityResultSchema,
+  testCoverage: TestCoverageResultSchema,
+  refactorings: RefactoringSuggestionSchema
+});
+
+export type FileReview = z.infer<typeof FileReviewSchema>;
+
+/**
  * Complete Review Report Schema
  * Aggregates all subagent results into a unified report
  */
@@ -16,12 +30,7 @@ export const ReviewReportSchema = z.object({
     repo: z.string(),
     number: z.number()
   }),
-  fileReviews: z.array(z.object({
-    file: z.string(),
-    codeQuality: CodeQualityResultSchema,
-    testCoverage: TestCoverageResultSchema,
-    refactorings: RefactoringSuggestionSchema
-  })),
+  fileReviews: z.array(FileReviewSchema),
   summary: z.object({
     totalFiles: z.number(),
     overallScore: z.number(),
@@ -63,3 +72,9 @@ const rawSchema: JsonSchema = toJsonSchema(ReviewReportSchema);
 
 // Extract the actual schema - zodToJsonSchema may wrap it with extra properties
 export const ReviewReportJSONSchema = rawSchema;
+
+/**
+ * JSON Schema for a single file's combined analysis result.
+ * Used as the outputFormat when delegating one file to the 3 subagents.
+ */
+export const FileReviewJSONSchema: JsonSchema = toJsonSchema(FileReviewSchema);

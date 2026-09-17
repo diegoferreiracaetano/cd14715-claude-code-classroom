@@ -29,6 +29,5 @@ npm-debug.log*
 # Temporary files
 tmp*
 
-#claude settings
-.claude/
+#claude settings (local-only; course Skills under */.claude/skills/ are NOT ignored)
 .claude/settings.local.json

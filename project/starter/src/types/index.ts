@@ -23,6 +23,8 @@ export type {
 // Report schemas and types
 export {
   ReviewReportSchema,
-  ReviewReportJSONSchema
+  ReviewReportJSONSchema,
+  FileReviewSchema,
+  FileReviewJSONSchema
 } from './report-types';
-export type { ReviewReport } from './report-types';
+export type { ReviewReport, FileReview } from './report-types';
