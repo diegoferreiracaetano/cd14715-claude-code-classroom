@@ -111,9 +111,29 @@ export class CodeReviewOrchestrator {
         );
       }
 
-      const fileReviews = await Promise.all(
-        files.map((file) => this.reviewFile(file, tempDir))
-      );
+      // Graceful degradation: one file's subagents failing (even after retries)
+      // should not sink the whole PR review — skip it and keep the rest.
+      const settled = await Promise.allSettled(files.map((file) => this.reviewFile(file, tempDir)));
+
+      const fileReviews: FileReview[] = [];
+      for (const [index, result] of settled.entries()) {
+        if (result.status === 'fulfilled') {
+          fileReviews.push(result.value);
+        } else {
+          logger.warn('Skipping file after review failed', {
+            file: files[index]?.path,
+            error: formatError(result.reason)
+          });
+        }
+      }
+
+      if (fileReviews.length === 0) {
+        throw new ReviewError(
+          `All ${files.length} file review(s) failed for ${owner}/${repo}#${prNumber}`,
+          ErrorCodes.AGENT_FAILED,
+          { owner, repo, prNumber, fileCount: files.length }
+        );
+      }
 
       const report = this.buildReport(owner, repo, prNumber, fileReviews, startTime);
 
@@ -159,6 +179,9 @@ export class CodeReviewOrchestrator {
         mcpServers: { github: mcpServersConfig.github },
         allowedTools: ['mcp__github__*'],
         model,
+        // Headless/CI use: no human is present to approve tool calls, so the
+        // session must not block on a permission prompt.
+        permissionMode: 'bypassPermissions',
         outputFormat: { type: 'json_schema', schema: PRFilesResponseJSONSchema },
         maxTurns: 15
       }
@@ -253,6 +276,10 @@ export class CodeReviewOrchestrator {
         allowedTools: ['Task'],
         mcpServers: tempPath ? { eslint: mcpServersConfig.eslint } : undefined,
         model,
+        permissionMode: 'bypassPermissions',
+        // Test coverage analysis (identifying untested paths/edge cases) benefits from
+        // extended thinking; this budget is available to all 3 delegated subagents.
+        maxThinkingTokens: 4000,
         outputFormat: { type: 'json_schema', schema: FileReviewJSONSchema },
         maxTurns: 25
       }

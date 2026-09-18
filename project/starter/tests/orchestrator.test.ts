@@ -252,6 +252,26 @@ describe('CodeReviewOrchestrator', () => {
       const orchestrator = new CodeReviewOrchestrator({ ...FAST_OPTIONS, maxRetries: 2 });
       await expect(orchestrator.reviewPullRequest('acme', 'widgets', 1)).rejects.toThrow();
     });
+
+    it('should gracefully degrade: skip a failing file but still return reviews for the rest', async () => {
+      installMockQuery({
+        files: [
+          { path: 'src/good.ts', content: 'ok' },
+          { path: 'src/flaky.ts', content: 'x' }
+        ],
+        reviewsByPath: {
+          'src/good.ts': makeFileReview('src/good.ts'),
+          'src/flaky.ts': 'error'
+        }
+      });
+
+      const orchestrator = new CodeReviewOrchestrator(FAST_OPTIONS);
+      const report = await orchestrator.reviewPullRequest('acme', 'widgets', 1);
+
+      expect(report.fileReviews).toHaveLength(1);
+      expect(report.fileReviews[0]?.file).toBe('src/good.ts');
+      expect(report.summary.totalFiles).toBe(1);
+    });
   });
 
   describe('Integration', () => {
